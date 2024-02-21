@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from einops import rearrange
 from torch import nn
 import torch.nn.init as init
-
+from pcd import *
 
 
 def _weights_init(m):
@@ -84,6 +84,10 @@ class Attention(nn.Module):
         attn = dots.softmax(dim=-1)  # follow the softmax,q,d,v equation in the paper
 
         out = torch.einsum('bhij,bhjd->bhid', attn, v)  # product of v times whatever inside softmax
+        print("decomposing attn")
+        decompose(attn, 3)
+        print("decomposing v")
+        decompose(v, 3)
         out = rearrange(out, 'b h n d -> b n (h d)')  # concat heads into one matrix, ready for next encoder block
         out = self.nn1(out)
         out = self.do1(out)
