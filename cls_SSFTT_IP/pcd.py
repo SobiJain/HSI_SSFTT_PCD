@@ -89,29 +89,40 @@ def compare_factors(factors, factors_actual, factors_ind=[0, 1, 2], fig=None):
     
     return fig, axes
 
-def decompose(observeds, rank):
+def decompose(observed, rank):
   # Specify the tensor and the rank
-  for observed in observeds:
-    X, rank = tl.tensor(observed.cpu().detach().numpy()), 3
+  X, rank = tl.tensor(observed.cpu().detach().numpy()), 3
 
-    # # Perform CP decompositon using TensorLy
-    # factors_tl = parafac(X, rank=rank)
-    # print("len", len(factors_tl))
-    # for f in factors_tl:
-    #   for g in f:
-    #     print(g)
-    #     print("----------")
-    #   print("========")
+  # # Perform CP decompositon using TensorLy
+  # factors_tl = parafac(X, rank=rank)
+  # print("len", len(factors_tl))
+  # for f in factors_tl:
+  #   for g in f:
+  #     print(g)
+  #     print("----------")
+  #   print("========")
 
-    # Perform CP decomposition using tensortools
-    U = tt.cp_als(X, rank=rank, verbose=False)
-    factors_tt = U.factors.factors
-    print(factors_tt)
+  # Perform CP decomposition using tensortools
+  U = tt.cp_als(X, rank=rank, verbose=False)
+  factors_tt = U.factors.factors
 
-    # Reconstruct M, with the result of each library
-    # M_tl = reconstruct(factors_tl[1])
-    M_tt = reconstruct(factors_tt)
+  # Reconstruct M, with the result of each library
+  # M_tl = reconstruct(factors_tl[1])
+  M_tt = reconstruct(factors_tt)
 
-    # plot the decomposed factors
-    # plot_factors(factors_tl)
-    plot_factors(factors_tt)
+  # plot the decomposed factors
+  # plot_factors(factors_tl)
+  plot_factors(factors_tt)
+  return factors_tt
+
+def pcd_matmul(mat1, mat2):
+  mat1_factors = decompose(mat1, 3)
+  mat2_factors = decompose(mat2, 3)
+
+  for fac in mat1_factors:
+    print(fac.shape)
+  
+  print("==========")
+
+  for fac in mat2_factors:
+    print(fac.shape)
