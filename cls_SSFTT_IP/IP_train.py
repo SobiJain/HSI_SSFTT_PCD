@@ -10,12 +10,15 @@ from operator import truediv
 import get_cls_map
 import time
 import SSFTTnet
-
+import SSFTTnet_DCT
+from skimage.segmentation import slic
+from skimage.util import img_as_float
+import cv2
 
 def loadData():
     # 读入数据
-    data = sio.loadmat('/content/drive/MyDrive/MTP/10th sem/Vinod sir work/Data/PaviaU.mat')['paviaU']
-    labels = sio.loadmat('/content/drive/MyDrive/MTP/10th sem/Vinod sir work/Data/PaviaU_gt.mat')['paviaU_gt']
+    data = sio.loadmat('/content/drive/MyDrive/Data/PaviaU.mat')['paviaU']
+    labels = sio.loadmat('/content/drive/MyDrive/Data/PaviaU_gt.mat')['paviaU_gt']
 
     return data, labels
 
@@ -62,6 +65,42 @@ def createImageCubes(X, y, windowSize=5, removeZeroLabels = True):
 
     return patchesData, patchesLabels
 
+# SuperPixel Segmentation
+def superpixel_segmentation(image):
+  # image = img_as_float(io.imread("/content/drive/Othercomputers/Dell Inspiron (Aka Alpha)/IIT BHU/16888.png"))
+  # apply SLIC and extract (approximately) the supplied number
+  # of segments
+  
+  ld = int(''.join(map(str, image[1,1].shape)))
+  output_units = 9 
+  xc = img_as_float(image.copy())
+  xcp = img_as_float(image.copy())
+  for i in range(ld):
+    xcp[:,:,i]= slic(xc[:,:,i],n_segments = 300,compactness=1)
+  return xcp
+
+
+def kmeansnew(image):
+  last_dimension = int(''.join(map(str, X[1,1].shape)))
+  pixel_vals = image.reshape((-1,last_dimension))
+  # Convert to float type
+  pixel_vals = np.float32(pixel_vals)
+  #the below line of code defines the criteria for the algorithm to stop running,
+  #which will happen is 100 iterations are run or the epsilon (which is the required accuracy)
+  #becomes 85%
+  criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 1)
+  
+  # then perform k-means clustering wit h number of clusters defined as 3
+  #also random centres are initially choosed for k-means clustering
+  output_units = 9 
+  k = output_units
+  retval, labels, centers = cv2.kmeans(pixel_vals, k, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
+  # convert data into 8-bit values
+  centers = np.uint8(centers)
+  segmented_data = centers[labels.flatten()]
+  # reshape data into the original image dimensions
+  segmented_image = segmented_data.reshape((image.shape))
+  return segmented_image
 
 def splitTrainTestSet(X, y, testRatio, randomState=345):
     X_train, X_test, y_train, y_test = train_test_split(X,
@@ -183,7 +222,7 @@ def train(train_loader, epochs):
     # 使用GPU训练，可以在菜单 "代码执行工具" -> "更改运行时类型" 里进行设置
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     # 网络放到GPU上
-    net = SSFTTnet.SSFTTnet().to(device)
+    net = SSFTTnet_DCT.SSFTTnet_DCT().to(device)
     # 交叉熵损失函数
     criterion = nn.CrossEntropyLoss()
     # 初始化优化器
