@@ -14,8 +14,8 @@ import SSFTTnet
 
 def loadData():
     # 读入数据
-    data = sio.loadmat('../data/Indian_pines_corrected.mat')['indian_pines_corrected']
-    labels = sio.loadmat('../data/Indian_pines_gt.mat')['indian_pines_gt']
+    data = sio.loadmat('/content/drive/MyDrive/MTP/10th sem/Vinod sir work/Data/PaviaU.mat')['paviaU']
+    labels = sio.loadmat('/content/drive/MyDrive/MTP/10th sem/Vinod sir work/Data/PaviaU_gt.mat')['paviaU_gt']
 
     return data, labels
 
@@ -72,17 +72,17 @@ def splitTrainTestSet(X, y, testRatio, randomState=345):
 
     return X_train, X_test, y_train, y_test
 
-BATCH_SIZE_TRAIN = 64
+BATCH_SIZE_TRAIN = 128
 
 def create_data_loader():
     # 地物类别
-    # class_num = 16
+    class_num = 9
     # 读入数据
     X, y = loadData()
     # 用于测试样本的比例
-    test_ratio = 0.90
+    test_ratio = 0.98
     # 每个像素周围提取 patch 的尺寸
-    patch_size = 13
+    patch_size = 15
     # 使用 PCA 降维，得到主成分的数量
     pca_components = 30
 
@@ -245,9 +245,7 @@ def acc_reports(y_test, y_pred_test):
 
     target_names = ['Alfalfa', 'Corn-notill', 'Corn-mintill', 'Corn'
         , 'Grass-pasture', 'Grass-trees', 'Grass-pasture-mowed',
-                    'Hay-windrowed', 'Oats', 'Soybean-notill', 'Soybean-mintill',
-                    'Soybean-clean', 'Wheat', 'Woods', 'Buildings-Grass-Trees-Drives',
-                    'Stone-Steel-Towers']
+                    'Hay-windrowed', 'Oats']
     classification = classification_report(y_test, y_pred_test, digits=4, target_names=target_names)
     oa = accuracy_score(y_test, y_pred_test)
     confusion = confusion_matrix(y_test, y_pred_test)
@@ -260,7 +258,7 @@ if __name__ == '__main__':
 
     train_loader, test_loader, all_data_loader, y_all= create_data_loader()
     tic1 = time.perf_counter()
-    net, device = train(train_loader, epochs=100)
+    net, device = train(train_loader, epochs=200)
     # 只保存模型参数
     torch.save(net.state_dict(), 'cls_params/SSFTTnet_params.pth')
     toc1 = time.perf_counter()
@@ -291,8 +289,3 @@ if __name__ == '__main__':
         x_file.write('{}'.format(confusion))
 
     get_cls_map.get_cls_map(net, device, all_data_loader, y_all)
-
-
-
-
-
