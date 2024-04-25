@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from einops import rearrange
 from torch import nn
 import torch.nn.init as init
-from pcd import *
+
 
 
 def _weights_init(m):
@@ -70,20 +70,8 @@ class Attention(nn.Module):
         b, n, _, h = *x.shape, self.heads
         qkv = self.to_qkv(x).chunk(3, dim = -1)  # gets q = Q = Wq matmul x1, k = Wk mm x2, v = Wv mm x3
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=h), qkv)  # split into multi head attentions
-        print("q, k, v shapes", q.shape, k.shape, v.shape)
-        q_3d = q.reshape(q.shape[0]*q.shape[1], q.shape[2], q.shape[3])
-        k_3d = k.reshape(k.shape[0]*k.shape[1], k.shape[2], k.shape[3])
-        print("3d q, k shapes", q_3d.shape, k_3d.shape)
 
         dots = torch.einsum('bhid,bhjd->bhij', q, k) * self.scale
-        print("dots ka shape", dots.shape)
-
-        kT_3d = torch.randint(5, (k_3d.shape[0],k_3d.shape[2], k_3d.shape[1])) 
-        for i in range(k_3d.shape[0]):
-          kT_3d[i] = torch.transpose(k_3d[i], 1, 0)
-        print("shape of transposed kT_3d", kT_3d.shape)
-        dots_3d = pcd_matmul(q_3d, kT_3d)
-        
         mask_value = -torch.finfo(dots.dtype).max
 
         if mask is not None:
@@ -96,10 +84,6 @@ class Attention(nn.Module):
         attn = dots.softmax(dim=-1)  # follow the softmax,q,d,v equation in the paper
 
         out = torch.einsum('bhij,bhjd->bhid', attn, v)  # product of v times whatever inside softmax
-        # print("decomposing attn")
-        # decompose(attn, 3)
-        # print("decomposing v")
-        # decompose(v, 3)
         out = rearrange(out, 'b h n d -> b n (h d)')  # concat heads into one matrix, ready for next encoder block
         out = self.nn1(out)
         out = self.do1(out)
@@ -196,4 +180,3 @@ if __name__ == '__main__':
     input = torch.randn(64, 1, 30, 13, 13)
     y = model(input)
     print(y.size())
-    
