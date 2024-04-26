@@ -17,9 +17,10 @@ import cv2
 
 def loadData():
     # 读入数据
-    data = sio.loadmat('/content/drive/MyDrive/Data/PaviaU.mat')['paviaU']
-    labels = sio.loadmat('/content/drive/MyDrive/Data/PaviaU_gt.mat')['paviaU_gt']
-
+    # data = sio.loadmat('/content/drive/MyDrive/Data/PaviaU.mat')['paviaU']
+    # labels = sio.loadmat('/content/drive/MyDrive/Data/PaviaU_gt.mat')['paviaU_gt']
+    data = sio.loadmat('/content/drive/MyDrive/MTP/10th sem/Vinod sir work/Data/PaviaU.mat')['paviaU']
+    labels = sio.loadmat('/content/drive/MyDrive/MTP/10th sem/Vinod sir work/Data/PaviaU_gt.mat')['paviaU_gt']
     return data, labels
 
 # 对高光谱数据 X 应用 PCA 变换
@@ -148,7 +149,7 @@ def create_data_loader():
     X_kmean = X_kmean + X
     X_pca = applyPCA(X_kmean, numComponents=pca_components//2)
     X_pca = custom_softmax(X_pca)
-    print('Data shape after K-means: ', X_kmean.shape)
+    print('Data shape after K-means: ', X_pca.shape)
 
     # concatenation
     X_pca = np.concatenate((X_slic, X_pca), axis = 2)
@@ -246,7 +247,7 @@ class FocalLoss(nn.Module):
     self.epsilon = 1e-9
     self.reduction = reduction
 
-  def forward(self, y_true, y_pred):
+  def forward(self, y_pred, y_true):
     """
     Focal loss calculation for multi-classification.
 
@@ -259,6 +260,7 @@ class FocalLoss(nn.Module):
     """
 
     #converting y_pred to one-hot encoded format
+    y_true = torch.nn.functional.one_hot(y_true, num_classes=y_pred.shape[1])
 
     y_true = y_true.float()  # Ensure float type for calculations
     y_pred = y_pred.clamp(self.epsilon, 1.0 - self.epsilon)  # Clamp for log stability
@@ -287,7 +289,7 @@ def train(train_loader, epochs):
     # 网络放到GPU上
     net = SSFTTnet_DCT.SSFTTnet_DCT().to(device)
     # 交叉熵损失函数
-    criterion = nn.CrossEntropyLoss()
+    criterion = FocalLoss()
     # 初始化优化器
     optimizer = optim.Adam(net.parameters(), lr=0.001)
     # 开始训练
