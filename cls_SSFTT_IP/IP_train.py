@@ -238,12 +238,6 @@ class TestDS(torch.utils.data.Dataset):
         # 返回文件数据的数目
         return self.len
 
-Here's the equivalent PyTorch code for the provided Keras FocalLoss class:
-
-Python
-import torch
-from torch import nn
-
 class FocalLoss(nn.Module):
   def __init__(self, gamma=1.0, alpha=0.75, reduction='mean'):
     super(FocalLoss, self).__init__()
