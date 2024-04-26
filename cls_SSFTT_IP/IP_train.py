@@ -81,7 +81,7 @@ def superpixel_segmentation(image):
 
 
 def kmeansnew(image):
-  last_dimension = int(''.join(map(str, X[1,1].shape)))
+  last_dimension = int(''.join(map(str, image[1,1].shape)))
   pixel_vals = image.reshape((-1,last_dimension))
   # Convert to float type
   pixel_vals = np.float32(pixel_vals)
@@ -113,6 +113,13 @@ def splitTrainTestSet(X, y, testRatio, randomState=345):
 
 BATCH_SIZE_TRAIN = 128
 
+def custom_softmax(y):
+  """Softmax function for 2D array (rows)"""
+  for i in range(15):
+    e_x = np.exp(y[:,:,i] - np.max(y[:,:,i], axis=1, keepdims=True))
+    y[:,:,i] = e_x / np.sum(e_x, axis=1, keepdims=True)
+  return y
+
 def create_data_loader():
     # 地物类别
     class_num = 9
@@ -128,9 +135,23 @@ def create_data_loader():
     print('Hyperspectral data shape: ', X.shape)
     print('Label shape: ', y.shape)
 
-    print('\n... ... PCA tranformation ... ...')
-    X_pca = applyPCA(X, numComponents=pca_components)
-    print('Data shape after PCA: ', X_pca.shape)
+    print('\n... ... SLIC tranformation ... ...')
+    X_pca = applyPCA(X, numComponents=pca_components//2)
+    X_slic = superpixel_segmentation(X_pca)
+    X_slic = custom_softmax(X_slic)
+    print('Data shape after SLIC: ', X_slic.shape)
+    X_slic = X_slic + X_pca
+    print('Data shape after SLIC: ', X_slic.shape)
+
+    print('\n... ... K-means tranformation ... ...')
+    X_kmean = kmeansnew(X)
+    X_kmean = X_kmean + X
+    X_pca = applyPCA(X_kmean, numComponents=pca_components//2)
+    X_pca = custom_softmax(X_pca)
+    print('Data shape after K-means: ', X_kmean.shape)
+
+    # concatenation
+    X_pca = np.concatenate((X_slic, X_pca), axis = 2)
 
     print('\n... ... create data cubes ... ...')
     X_pca, y_all = createImageCubes(X_pca, y, windowSize=patch_size)
