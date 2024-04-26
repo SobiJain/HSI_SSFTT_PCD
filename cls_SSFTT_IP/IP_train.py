@@ -238,6 +238,54 @@ class TestDS(torch.utils.data.Dataset):
         # 返回文件数据的数目
         return self.len
 
+Here's the equivalent PyTorch code for the provided Keras FocalLoss class:
+
+Python
+import torch
+from torch import nn
+
+class FocalLoss(nn.Module):
+  def __init__(self, gamma=1.0, alpha=0.75, reduction='mean'):
+    super(FocalLoss, self).__init__()
+    self.gamma = gamma
+    self.alpha = alpha
+    self.epsilon = 1e-9
+    self.reduction = reduction
+
+  def forward(self, y_true, y_pred):
+    """
+    Focal loss calculation for multi-classification.
+
+    Args:
+      y_true: Ground truth labels, shape (batch_size, num_classes).
+      y_pred: Model's output, shape (batch_size).
+
+    Returns:
+      Focal loss value.
+    """
+
+    #converting y_pred to one-hot encoded format
+
+    y_true = y_true.float()  # Ensure float type for calculations
+    y_pred = y_pred.clamp(self.epsilon, 1.0 - self.epsilon)  # Clamp for log stability
+
+    model_out = y_pred + self.epsilon
+    ce = -torch.mul(y_true, torch.log(model_out))
+    weight = torch.mul(y_true, torch.pow(1.0 - model_out, self.gamma))
+    fl = self.alpha * torch.mul(weight, ce)
+
+    weight2 = torch.mul(y_pred, (1 - self.alpha)) + torch.mul((1 - y_pred), self.alpha)
+    fl2 = fl + self.epsilon * torch.pow(1 - y_pred, self.gamma + 1) * weight2
+
+    if self.reduction == 'mean':
+      reduced_fl2 = torch.mean(torch.max(fl2, dim=1)[0])
+    elif self.reduction == 'sum':
+      reduced_fl2 = torch.sum(torch.max(fl2, dim=1)[0])
+    else:
+      raise NotImplementedError(f"Reduction '{self.reduction}' not supported")
+
+    return reduced_fl2
+
 def train(train_loader, epochs):
 
     # 使用GPU训练，可以在菜单 "代码执行工具" -> "更改运行时类型" 里进行设置
