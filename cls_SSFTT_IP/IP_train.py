@@ -17,10 +17,10 @@ import cv2
 
 def loadData():
     # 读入数据
-    # data = sio.loadmat('/content/drive/MyDrive/Data/PaviaU.mat')['paviaU']
-    # labels = sio.loadmat('/content/drive/MyDrive/Data/PaviaU_gt.mat')['paviaU_gt']
-    data = sio.loadmat('/content/drive/MyDrive/MTP/10th sem/Vinod sir work/Data/PaviaU.mat')['paviaU']
-    labels = sio.loadmat('/content/drive/MyDrive/MTP/10th sem/Vinod sir work/Data/PaviaU_gt.mat')['paviaU_gt']
+    # data = sio.loadmat('/content/drive/MyDrive/Data/WHU data/WHU-Hi-HongHu/WHU_Hi_HongHu.mat')['WHU_Hi_HongHu']
+    # labels = sio.loadmat('/content/drive/MyDrive/Data/WHU data/WHU-Hi-HongHu/WHU_Hi_HongHu_gt.mat')['WHU_Hi_HongHu_gt']
+    data = sio.loadmat('/content/drive/MyDrive/Data/PaviaU.mat')['paviaU']
+    labels = sio.loadmat('/content/drive/MyDrive/Data/PaviaU_gt.mat')['paviaU_gt']
     return data, labels
 
 # 对高光谱数据 X 应用 PCA 变换
@@ -66,6 +66,8 @@ def createImageCubes(X, y, windowSize=5, removeZeroLabels = True):
 
     return patchesData, patchesLabels
 
+output_units = 9
+
 # SuperPixel Segmentation
 def superpixel_segmentation(image):
   # image = img_as_float(io.imread("/content/drive/Othercomputers/Dell Inspiron (Aka Alpha)/IIT BHU/16888.png"))
@@ -73,7 +75,6 @@ def superpixel_segmentation(image):
   # of segments
   
   ld = int(''.join(map(str, image[1,1].shape)))
-  output_units = 9 
   xc = img_as_float(image.copy())
   xcp = img_as_float(image.copy())
   for i in range(ld):
@@ -93,7 +94,6 @@ def kmeansnew(image):
   
   # then perform k-means clustering wit h number of clusters defined as 3
   #also random centres are initially choosed for k-means clustering
-  output_units = 9 
   k = output_units
   retval, labels, centers = cv2.kmeans(pixel_vals, k, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
   # convert data into 8-bit values
@@ -121,15 +121,16 @@ def custom_softmax(y):
     y[:,:,i] = e_x / np.sum(e_x, axis=1, keepdims=True)
   return y
 
+patch_size = 13
+
 def create_data_loader():
     # 地物类别
     class_num = 9
     # 读入数据
     X, y = loadData()
     # 用于测试样本的比例
-    test_ratio = 0.98
+    test_ratio = 0.90
     # 每个像素周围提取 patch 的尺寸
-    patch_size = 15
     # 使用 PCA 降维，得到主成分的数量
     pca_components = 30
 
@@ -239,50 +240,178 @@ class TestDS(torch.utils.data.Dataset):
         # 返回文件数据的数目
         return self.len
 
-class FocalLoss(nn.Module):
-  def __init__(self, gamma=1.0, alpha=0.75, reduction='mean'):
-    super(FocalLoss, self).__init__()
-    self.gamma = gamma
-    self.alpha = alpha
-    self.epsilon = 1e-9
-    self.reduction = reduction
+from typing import Optional, Sequence
+from torch import Tensor
+from torch.nn import functional as F
 
-  def forward(self, y_pred, y_true):
-    """
-    Focal loss calculation for multi-classification.
+# class FocalLoss(nn.Module):
+#     """ Focal Loss, as described in https://arxiv.org/abs/1708.02002.
 
-    Args:
-      y_true: Ground truth labels, shape (batch_size, num_classes).
-      y_pred: Model's output, shape (batch_size).
+#     It is essentially an enhancement to cross entropy loss and is
+#     useful for classification tasks when there is a large class imbalance.
+#     x is expected to contain raw, unnormalized scores for each class.
+#     y is expected to contain class labels.
 
-    Returns:
-      Focal loss value.
-    """
+#     Shape:
+#         - x: (batch_size, C) or (batch_size, C, d1, d2, ..., dK), K > 0.
+#         - y: (batch_size,) or (batch_size, d1, d2, ..., dK), K > 0.
+#     """
 
-    #converting y_true to one-hot encoded format
-    y_true = torch.nn.functional.one_hot(y_true, num_classes=y_pred.shape[1])
+#     def __init__(self,
+#                  alpha: Optional[Tensor] = None,
+#                  gamma: float = 0.,
+#                  reduction: str = 'mean',
+#                  ignore_index: int = -100):
+#         """Constructor.
 
-    y_true = y_true.float()  # Ensure float type for calculations
-    # print(y_true)
-    # print(y_pred)
-    y_pred = y_pred.clamp(self.epsilon, 1.0 - self.epsilon)  # Clamp for log stability
+#         Args:
+#             alpha (Tensor, optional): Weights for each class. Defaults to None.
+#             gamma (float, optional): A constant, as described in the paper.
+#                 Defaults to 0.
+#             reduction (str, optional): 'mean', 'sum' or 'none'.
+#                 Defaults to 'mean'.
+#             ignore_index (int, optional): class label to ignore.
+#                 Defaults to -100.
+#         """
+#         if reduction not in ('mean', 'sum', 'none'):
+#             raise ValueError(
+#                 'Reduction must be one of: "mean", "sum", "none".')
 
-    model_out = y_pred + self.epsilon
-    ce = -torch.mul(y_true, torch.log(model_out))
-    weight = torch.mul(y_true, torch.pow(1.0 - model_out, self.gamma))
-    fl = self.alpha * torch.mul(weight, ce)
+#         super().__init__()
+#         self.alpha = 0.25
+#         self.gamma = 2
+#         self.ignore_index = ignore_index
+#         self.reduction = reduction
 
-    weight2 = torch.mul(y_pred, (1 - self.alpha)) + torch.mul((1 - y_pred), self.alpha)
-    fl2 = fl + self.epsilon * torch.pow(1 - y_pred, self.gamma + 1) * weight2
+#         self.nll_loss = nn.NLLLoss(
+#             weight=alpha, reduction='none', ignore_index=ignore_index)
 
-    if self.reduction == 'mean':
-      reduced_fl2 = torch.mean(torch.max(fl2, dim=1)[0])
-    elif self.reduction == 'sum':
-      reduced_fl2 = torch.sum(torch.max(fl2, dim=1)[0])
-    else:
-      raise NotImplementedError(f"Reduction '{self.reduction}' not supported")
+#     def _repr_(self):
+#         arg_keys = ['alpha', 'gamma', 'ignore_index', 'reduction']
+#         arg_vals = [self._dict_[k] for k in arg_keys]
+#         arg_strs = [f'{k}={v!r}' for k, v in zip(arg_keys, arg_vals)]
+#         arg_str = ', '.join(arg_strs)
+#         return f'{type(self)._name_}({arg_str})'
 
-    return reduced_fl2
+#     def forward(self, x: Tensor, y: Tensor) -> Tensor:
+#         if x.ndim > 2:
+#             # (N, C, d1, d2, ..., dK) --> (N * d1 * ... * dK, C)
+#             c = x.shape[1]
+#             x = x.permute(0, *range(2, x.ndim), 1).reshape(-1, c)
+#             # (N, d1, d2, ..., dK) --> (N * d1 * ... * dK,)
+#             y = y.view(-1)
+
+#         unignored_mask = y != self.ignore_index
+#         y = y[unignored_mask]
+#         if len(y) == 0:
+#             return torch.tensor(0.)
+#         x = x[unignored_mask]
+
+#         # compute weighted cross entropy term: -alpha * log(pt)
+#         # (alpha is already part of self.nll_loss)
+#         log_p = F.log_softmax(x, dim=-1)
+#         ce = self.nll_loss(log_p, y)
+
+#         # get true class column from each row
+#         all_rows = torch.arange(len(x))
+#         log_pt = log_p[all_rows, y]
+
+#         # compute focal term: (1 - pt)^gamma
+#         pt = log_pt.exp()
+#         focal_term = (1 - pt)**self.gamma
+
+#         # the full loss: -alpha * ((1 - pt)^gamma) * log(pt)
+#         loss = focal_term * ce
+
+#         epsilon = 1e-9
+#         total_loss = loss + epsilon*((1 - pt)**(self.gamma+1))
+
+#         if self.reduction == 'mean':
+#             total_loss = total_loss.mean()
+#         elif self.reduction == 'sum':
+#             total_loss = total_loss.sum()
+
+#         return total_loss
+
+
+# def focal_loss(alpha: Optional[Sequence] = None,
+#                gamma: float = 0.,
+#                reduction: str = 'mean',
+#                ignore_index: int = -100,
+#                device='cpu',
+#                dtype=torch.float32) -> FocalLoss:
+#     """Factory function for FocalLoss.
+
+#     Args:
+#         alpha (Sequence, optional): Weights for each class. Will be converted
+#             to a Tensor if not None. Defaults to None.
+#         gamma (float, optional): A constant, as described in the paper.
+#             Defaults to 0.
+#         reduction (str, optional): 'mean', 'sum' or 'none'.
+#             Defaults to 'mean'.
+#         ignore_index (int, optional): class label to ignore.
+#             Defaults to -100.
+#         device (str, optional): Device to move alpha to. Defaults to 'cpu'.
+#         dtype (torch.dtype, optional): dtype to cast alpha to.
+#             Defaults to torch.float32.
+
+#     Returns:
+#         A FocalLoss object
+#     """
+#     if alpha is not None:
+#         if not isinstance(alpha, Tensor):
+#             alpha = torch.tensor(alpha)
+#         alpha = alpha.to(device=device, dtype=dtype)
+
+#     fl = FocalLoss(
+#         alpha=alpha,
+#         gamma=gamma,
+#         reduction=reduction,
+#         ignore_index=ignore_index)
+#     return fl
+
+class FocalLoss(nn.modules.loss._WeightedLoss):
+    def __init__(self, weight=None, gamma=2, device='cpu'):
+        super(FocalLoss, self).__init__(weight)
+        # focusing hyper-parameter gamma
+        self.gamma = gamma
+
+        # class weights will act as the alpha parameter
+        self.weight = weight
+        
+        # using deivce (cpu or gpu)
+        self.device = device
+        
+        self.ce_loss = nn.CrossEntropyLoss()
+
+    def forward(self, _input, _target):
+        focal_loss = 0
+        poly1 = 0
+        epsilon = 1e-9
+        
+        for i in range(len(_input)):
+            # -log(pt)
+            cur_ce_loss = self.ce_loss(_input[i].view(-1, _input[i].size()[-1]), _target[i].view(-1))
+            # pt
+            pt = torch.exp(-cur_ce_loss)
+
+            if self.weight is not None:
+                # alpha * (1-pt)^gamma * -log(pt)
+                cur_focal_loss = self.weight[_target[i]] * ((1 - pt) ** self.gamma) * cur_ce_loss
+            else:
+                # (1-pt)^gamma * -log(pt)
+                cur_focal_loss = ((1 - pt) ** self.gamma) * cur_ce_loss
+            
+            focal_loss = focal_loss + cur_focal_loss
+        
+        focal_loss = focal_loss + epsilon*((1 - pt)**(self.gamma+1))
+
+        if self.weight is not None:
+            focal_loss = focal_loss / self.weight.sum()
+            return focal_loss.to(self.device)
+        
+        focal_loss = focal_loss / output_units   
+        return focal_loss.to(self.device)
 
 def train(train_loader, epochs):
 
@@ -351,7 +480,7 @@ def acc_reports(y_test, y_pred_test):
 
     target_names = ['Alfalfa', 'Corn-notill', 'Corn-mintill', 'Corn'
         , 'Grass-pasture', 'Grass-trees', 'Grass-pasture-mowed',
-                    'Hay-windrowed', 'Oats']
+                    'Hay-windrowed', 'Oats' ]
     classification = classification_report(y_test, y_pred_test, digits=4, target_names=target_names)
     oa = accuracy_score(y_test, y_pred_test)
     confusion = confusion_matrix(y_test, y_pred_test)
@@ -376,7 +505,7 @@ if __name__ == '__main__':
     classification = str(classification)
     Training_Time = toc1 - tic1
     Test_time = toc2 - tic2
-    file_name = "cls_result/classification_report.txt"
+    file_name = "cls_result/classification_report"+str(patch_size)+".txt"
     with open(file_name, 'w') as x_file:
         x_file.write('{} Training_Time (s)'.format(Training_Time))
         x_file.write('\n')
@@ -394,4 +523,4 @@ if __name__ == '__main__':
         x_file.write('\n')
         x_file.write('{}'.format(confusion))
 
-    get_cls_map.get_cls_map(net, device, all_data_loader, y_all)
+    # get_cls_map.get_cls_map(net, device, all_data_loader, y_all)
