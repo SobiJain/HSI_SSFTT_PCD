@@ -259,10 +259,12 @@ class FocalLoss(nn.Module):
       Focal loss value.
     """
 
-    #converting y_pred to one-hot encoded format
+    #converting y_true to one-hot encoded format
     y_true = torch.nn.functional.one_hot(y_true, num_classes=y_pred.shape[1])
 
     y_true = y_true.float()  # Ensure float type for calculations
+    # print(y_true)
+    # print(y_pred)
     y_pred = y_pred.clamp(self.epsilon, 1.0 - self.epsilon)  # Clamp for log stability
 
     model_out = y_pred + self.epsilon
