@@ -19,8 +19,8 @@ def loadData():
     # 读入数据
     # data = sio.loadmat('/content/drive/MyDrive/Data/WHU data/WHU-Hi-HongHu/WHU_Hi_HongHu.mat')['WHU_Hi_HongHu']
     # labels = sio.loadmat('/content/drive/MyDrive/Data/WHU data/WHU-Hi-HongHu/WHU_Hi_HongHu_gt.mat')['WHU_Hi_HongHu_gt']
-    data = sio.loadmat('/content/HSI_SSFTT_PCD/data/Indian_pines_corrected.mat')['indian_pines_corrected']
-    labels = sio.loadmat('/content/HSI_SSFTT_PCD/data/Indian_pines_gt.mat')['indian_pines_gt']
+    data = sio.loadmat('/content/drive/MyDrive/Data/PaviaU.mat')['paviaU']
+    labels = sio.loadmat('/content/drive/MyDrive/Data/PaviaU_gt.mat')['paviaU_gt']
     return data, labels
 
 # 对高光谱数据 X 应用 PCA 变换
@@ -121,7 +121,7 @@ def custom_softmax(y):
     y[:,:,i] = e_x / np.sum(e_x, axis=1, keepdims=True)
   return y
 
-patch_size = 9
+patch_size = 13
 
 def create_data_loader():
     # 地物类别
@@ -354,9 +354,7 @@ def acc_reports(y_test, y_pred_test):
 
     target_names = ['Alfalfa', 'Corn-notill', 'Corn-mintill', 'Corn'
         , 'Grass-pasture', 'Grass-trees', 'Grass-pasture-mowed',
-                    'Hay-windrowed', 'Oats' , 'Corn-mintill', 'Corn'
-        , 'Grass-pasture', 'Grass-trees', 'Grass-pasture-mowed',
-                    'Hay-windrowed', 'Oats' ]
+                    'Hay-windrowed', 'Oats']
     classification = classification_report(y_test, y_pred_test, digits=4, target_names=target_names)
     oa = accuracy_score(y_test, y_pred_test)
     confusion = confusion_matrix(y_test, y_pred_test)
@@ -399,4 +397,4 @@ if __name__ == '__main__':
         x_file.write('\n')
         x_file.write('{}'.format(confusion))
 
-    # get_cls_map.get_cls_map(net, device, all_data_loader, y_all)
+    # get_cls_map.get_cls_map(net, device, all_data_loade
