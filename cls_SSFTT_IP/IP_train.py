@@ -19,8 +19,8 @@ def loadData():
     # 读入数据
     # data = sio.loadmat('/content/drive/MyDrive/Data/WHU data/WHU-Hi-HongHu/WHU_Hi_HongHu.mat')['WHU_Hi_HongHu']
     # labels = sio.loadmat('/content/drive/MyDrive/Data/WHU data/WHU-Hi-HongHu/WHU_Hi_HongHu_gt.mat')['WHU_Hi_HongHu_gt']
-    data = sio.loadmat('/content/drive/MyDrive/Data/PaviaU.mat')['paviaU']
-    labels = sio.loadmat('/content/drive/MyDrive/Data/PaviaU_gt.mat')['paviaU_gt']
+    data = sio.loadmat('/content/drive/MyDrive/MTP/Data/PaviaU.mat')['paviaU']
+    labels = sio.loadmat('/content/drive/MyDrive/MTP/Data/PaviaU_gt.mat')['paviaU_gt']
     return data, labels
 
 # 对高光谱数据 X 应用 PCA 变换
@@ -66,7 +66,7 @@ def createImageCubes(X, y, windowSize=5, removeZeroLabels = True):
 
     return patchesData, patchesLabels
 
-output_units = 16
+output_units = 9
 
 # SuperPixel Segmentation
 def superpixel_segmentation(image):
@@ -125,7 +125,7 @@ patch_size = 13
 
 def create_data_loader():
     # 地物类别
-    class_num = 16
+    class_num = 9
     # 读入数据
     X, y = loadData()
     # 用于测试样本的比例
