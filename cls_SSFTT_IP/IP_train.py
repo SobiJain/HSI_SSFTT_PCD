@@ -19,8 +19,8 @@ def loadData():
     # 读入数据
     # data = sio.loadmat('/content/drive/MyDrive/Data/WHU data/WHU-Hi-HongHu/WHU_Hi_HongHu.mat')['WHU_Hi_HongHu']
     # labels = sio.loadmat('/content/drive/MyDrive/Data/WHU data/WHU-Hi-HongHu/WHU_Hi_HongHu_gt.mat')['WHU_Hi_HongHu_gt']
-    data = sio.loadmat('/content/drive/MyDrive/MTP/Data/PaviaU.mat')['paviaU']
-    labels = sio.loadmat('/content/drive/MyDrive/MTP/Data/PaviaU_gt.mat')['paviaU_gt']
+    data = sio.loadmat('/content/HSI_SSFTT_PCD/data/Indian_pines_corrected.mat')['indian_pines_corrected']
+    labels = sio.loadmat('/content/HSI_SSFTT_PCD/data/Indian_pines_gt.mat')['indian_pines_gt']
     return data, labels
 
 # 对高光谱数据 X 应用 PCA 变换
@@ -66,7 +66,7 @@ def createImageCubes(X, y, windowSize=5, removeZeroLabels = True):
 
     return patchesData, patchesLabels
 
-output_units = 9
+output_units = 16
 
 # SuperPixel Segmentation
 def superpixel_segmentation(image):
@@ -125,7 +125,7 @@ patch_size = 13
 
 def create_data_loader():
     # 地物类别
-    class_num = 9
+    class_num = 16
     # 读入数据
     X, y = loadData()
     # 用于测试样本的比例
@@ -354,6 +354,8 @@ def acc_reports(y_test, y_pred_test):
 
     target_names = ['Alfalfa', 'Corn-notill', 'Corn-mintill', 'Corn'
         , 'Grass-pasture', 'Grass-trees', 'Grass-pasture-mowed',
+                    'Hay-windrowed', 'Oats', 'Corn-mintill', 'Corn'
+        , 'Grass-pasture', 'Grass-trees', 'Grass-pasture-mowed',
                     'Hay-windrowed', 'Oats']
     classification = classification_report(y_test, y_pred_test, digits=4, target_names=target_names)
     oa = accuracy_score(y_test, y_pred_test)
@@ -369,8 +371,9 @@ if __name__ == '__main__':
     tic1 = time.perf_counter()
     net, device = train(train_loader, epochs=200)
     # 只保存模型参数
-    torch.save(net.state_dict(), 'cls_params/SSFTTnet_params.pth')
     toc1 = time.perf_counter()
+    torch.save(net.state_dict(), 'cls_params/SSFTTnet_params.pth')
+    
     tic2 = time.perf_counter()
     y_pred_test, y_test = test(device, net, test_loader)
     toc2 = time.perf_counter()
