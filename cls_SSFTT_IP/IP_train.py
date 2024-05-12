@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.io as sio
+import os
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, accuracy_score, classification_report, cohen_kappa_score
@@ -13,6 +14,7 @@ import SSFTTnet
 import SSFTTnet_DCT
 from skimage.segmentation import slic
 from skimage.util import img_as_float
+from calflops import calculate_flops
 import cv2
 
 def loadData():
@@ -122,6 +124,7 @@ def custom_softmax(y):
   return y
 
 patch_size = 13
+test_ratio = 0.92
 
 def create_data_loader():
     # 地物类别
@@ -129,7 +132,6 @@ def create_data_loader():
     # 读入数据
     X, y = loadData()
     # 用于测试样本的比例
-    test_ratio = 0.98
     # 每个像素周围提取 patch 的尺寸
     # 使用 PCA 降维，得到主成分的数量
     pca_components = 30
@@ -162,27 +164,34 @@ def create_data_loader():
 
     print('\n... ... create train & test data ... ...')
     Xtrain, Xtest, ytrain, ytest = splitTrainTestSet(X_pca, y_all, test_ratio)
+    Xval, Xtest, yval, ytest = splitTrainTestSet(Xtest, ytest, (1-(1-test_ratio)/test_ratio))
     print('Xtrain shape: ', Xtrain.shape)
     print('Xtest  shape: ', Xtest.shape)
+    print('Xval  shape: ', Xval.shape)
 
     # 改变 Xtrain, Ytrain 的形状，以符合 keras 的要求
     X = X_pca.reshape(-1, patch_size, patch_size, pca_components, 1)
     Xtrain = Xtrain.reshape(-1, patch_size, patch_size, pca_components, 1)
     Xtest = Xtest.reshape(-1, patch_size, patch_size, pca_components, 1)
+    Xval = Xval.reshape(-1, patch_size, patch_size, pca_components, 1)
     print('before transpose: Xtrain shape: ', Xtrain.shape)
     print('before transpose: Xtest  shape: ', Xtest.shape)
+    print('before transpose: Xval  shape: ', Xval.shape)
 
     # 为了适应 pytorch 结构，数据要做 transpose
     X = X.transpose(0, 4, 3, 1, 2)
     Xtrain = Xtrain.transpose(0, 4, 3, 1, 2)
     Xtest = Xtest.transpose(0, 4, 3, 1, 2)
+    Xval = Xval.transpose(0, 4, 3, 1, 2)
     print('after transpose: Xtrain shape: ', Xtrain.shape)
     print('after transpose: Xtest  shape: ', Xtest.shape)
+    print('after transpose: Xval  shape: ', Xval.shape)
 
     # 创建train_loader和 test_loader
     X = TestDS(X, y_all)
     trainset = TrainDS(Xtrain, ytrain)
     testset = TestDS(Xtest, ytest)
+    valset = TrainDS(Xval, yval)
     train_loader = torch.utils.data.DataLoader(dataset=trainset,
                                                batch_size=BATCH_SIZE_TRAIN,
                                                shuffle=True,
@@ -193,13 +202,18 @@ def create_data_loader():
                                                shuffle=False,
                                                num_workers=0,
                                               )
+    val_loader = torch.utils.data.DataLoader(dataset=valset,
+                                               batch_size=BATCH_SIZE_TRAIN,
+                                               shuffle=True,
+                                               num_workers=0,
+                                               )
     all_data_loader = torch.utils.data.DataLoader(dataset=X,
                                                 batch_size=BATCH_SIZE_TRAIN,
                                                 shuffle=False,
                                                 num_workers=0,
                                               )
 
-    return train_loader, test_loader, all_data_loader, y
+    return train_loader, test_loader, val_loader, all_data_loader, y
 
 """ Training dataset"""
 
@@ -287,7 +301,7 @@ class FocalLoss(nn.modules.loss._WeightedLoss):
         focal_loss = focal_loss / output_units   
         return focal_loss.to(self.device)
 
-def train(train_loader, epochs):
+def train(train_loader, val_loader, epochs):
 
     # 使用GPU训练，可以在菜单 "代码执行工具" -> "更改运行时类型" 里进行设置
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -317,6 +331,24 @@ def train(train_loader, epochs):
         print('[Epoch: %d]   [loss avg: %.4f]   [current loss: %.4f]' % (epoch + 1,
                                                                          total_loss / (epoch + 1),
                                                                          loss.item()))
+        val_acc_list = []
+        val_epoch_list = []
+        val_num = val_loader.dataset.__len__()
+        ## valuation
+        if (epoch+1)%4 == 0 or (epoch+1)==epochs:
+            val_acc =0
+            net.eval()
+            for batch_idx, (data, target) in enumerate(val_loader):
+                data,target = data.to(device),target.to(device)
+                out = net(data)
+                target = target - 1  ## class 0 in out is class 1 in target
+                _,pred = torch.max(out,dim=1)
+                val_acc += (pred == target).sum().item()
+            val_acc_list.append(val_acc/val_num)
+            val_epoch_list.append(epoch)
+            print(f"epoch {epoch}/{epochs}  val_acc:{val_acc_list[-1]}")
+            save_name = os.path.join('/', f"epoch_{epoch}_acc_{val_acc_list[-1]:.4f}.pth")
+            torch.save(net.state_dict(),save_name)
 
     print('Finished Training')
 
@@ -367,10 +399,18 @@ def acc_reports(y_test, y_pred_test):
 
 if __name__ == '__main__':
 
-    train_loader, test_loader, all_data_loader, y_all= create_data_loader()
+    train_loader, test_loader, val_loader, all_data_loader, y_all= create_data_loader()
     tic1 = time.perf_counter()
-    net, device = train(train_loader, epochs=200)
+    net, device = train(train_loader, val_loader, epochs=200)
     # 只保存模型参数
+    print("_______________________________________")
+    input_shape = (128, 1, 30, 13, 13)
+    flops, macs, params = calculate_flops(model=net, 
+                                        input_shape=input_shape,
+                                        output_as_string=True,
+                                        output_precision=4)
+    print("Alexnet FLOPs:%s  -- MACs:%s   -- Params:%s \n" %(flops, macs, params))
+
     toc1 = time.perf_counter()
     torch.save(net.state_dict(), 'cls_params/SSFTTnet_params.pth')
     
@@ -382,7 +422,7 @@ if __name__ == '__main__':
     classification = str(classification)
     Training_Time = toc1 - tic1
     Test_time = toc2 - tic2
-    file_name = "cls_result/classification_report"+str(patch_size)+".txt"
+    file_name = "cls_result/classification_report_IP "+str(test_ratio)+".txt"
     with open(file_name, 'w') as x_file:
         x_file.write('{} Training_Time (s)'.format(Training_Time))
         x_file.write('\n')
