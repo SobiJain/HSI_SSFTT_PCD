@@ -123,7 +123,7 @@ def custom_softmax(y):
     y[:,:,i] = e_x / np.sum(e_x, axis=1, keepdims=True)
   return y
 
-patch_size = 13
+patch_size = 9
 test_ratio = 0.92
 
 def create_data_loader():
@@ -142,16 +142,17 @@ def create_data_loader():
     print('\n... ... SLIC tranformation ... ...')
     X_pca = applyPCA(X, numComponents=pca_components//2)
     X_slic = superpixel_segmentation(X_pca)
-    X_slic = custom_softmax(X_slic)
+    X_soft = custom_softmax(X_slic)
     print('Data shape after SLIC: ', X_slic.shape)
-    X_slic = X_slic + X_pca
+    X_slic = X_slic + X_soft
     print('Data shape after SLIC: ', X_slic.shape)
 
     print('\n... ... K-means tranformation ... ...')
     X_kmean = kmeansnew(X)
     X_kmean = X_kmean + X
     X_pca = applyPCA(X_kmean, numComponents=pca_components//2)
-    X_pca = custom_softmax(X_pca)
+    X_soft = custom_softmax(X_pca)
+    X_pca = X_pca + X_soft
     print('Data shape after K-means: ', X_pca.shape)
 
     # concatenation
