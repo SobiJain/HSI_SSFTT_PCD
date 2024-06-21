@@ -8,6 +8,89 @@ from torch import nn
 import torch.nn.init as init
 from dct import dct_2d, idct_2d
 
+def make_group(num_filters):
+    x = 2
+    output_channels = []
+
+    while num_filters >= x:
+        output_channels.append(num_filters // x)
+        num_filters = num_filters - (num_filters // x)
+        x = x*2
+    
+    if num_filters > 0:
+        output_channels.append(num_filters)
+    
+    return output_channels
+
+def make_group1(num_filters):
+    x = 2
+    output_channels = []
+    y=3
+    while y > 0:
+        output_channels.append(num_filters // x)
+        num_filters = num_filters - (num_filters // x)
+        y=y-1
+    if num_filters > 0:
+        output_channels.append(num_filters)
+    
+    return output_channels
+
+class LogConv2D(nn.Module):
+  def __init__(self, input_channels, output_channels):
+    super(LogConv2D, self).__init__()
+
+    output_channels = make_group(output_channels)
+    self.num_groups = len(output_channels)
+    self.layers = nn.Sequential()
+
+    for i in output_channels:
+      self.layers.append(nn.Sequential(
+              nn.Conv2d(in_channels=8*30, out_channels=i, kernel_size=(3, 3), padding=1),
+              nn.BatchNorm2d(i),
+              nn.ReLU(),
+          ))
+
+  def forward(self, x):
+
+    #input_channel_groups = torch.chunk(x, self.num_groups, dim=0)
+    output_channel_groups = []
+    for i in self.layers:
+      x1 = i(x)
+      output_channel_groups.append(x1)
+
+    output = torch.cat(output_channel_groups, dim=1)
+    return output
+
+    return x
+
+class LogConv3D(nn.Module):
+  def __init__(self, input_channels, output_channels):
+    super(LogConv3D, self).__init__()
+
+    output_channels = make_group(output_channels)
+    self.num_groups = len(output_channels)
+    self.layers = nn.Sequential()
+
+    for i in output_channels:
+      self.layers.append(nn.Sequential(
+              nn.Conv3d(in_channels=1, out_channels=i, kernel_size=(3, 3, 3), padding=1),
+              nn.BatchNorm3d(i),
+              nn.ReLU(),
+          ))
+
+  def forward(self, x):
+
+    #input_channel_groups = torch.chunk(x, self.num_groups, dim=0)
+    output_channel_groups = []
+    for i in self.layers:
+      x1 = i(x)
+      output_channel_groups.append(x1)
+
+    output = torch.cat(output_channel_groups, dim=1)
+    return output
+
+
+    return x
 
 def _weights_init(m):
     classname = m.__class__.__name__
@@ -113,13 +196,15 @@ class SSFTTnet_DCT(nn.Module):
         self.L = num_tokens
         self.cT = dim
         self.conv3d_features = nn.Sequential(
-            nn.Conv3d(in_channels, out_channels=8, kernel_size=(3, 3, 3)),
+            # nn.Conv3d(in_channels, out_channels=8, kernel_size=(3, 3, 3)),
+            LogConv3D(in_channels, 8),
             nn.BatchNorm3d(8),
             nn.ReLU(),
         )
 
         self.conv2d_features = nn.Sequential(
-            nn.Conv2d(in_channels=8*28, out_channels=64, kernel_size=(3, 3)),
+            # nn.Conv2d(in_channels=8*28, out_channels=64, kernel_size=(3, 3)),
+            LogConv2D(8*30, 64),
             nn.BatchNorm2d(64),
             nn.ReLU(),
         )
