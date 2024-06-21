@@ -8,6 +8,7 @@ from torch import nn
 import torch.nn.init as init
 from dct import dct_2d, idct_2d
 
+
 def _weights_init(m):
     classname = m.__class__.__name__
     #print(classname)
@@ -104,7 +105,7 @@ class Transformer(nn.Module):
             x = mlp(x)  # go to MLP_Block
         return x
 
-NUM_CLASS = 16
+NUM_CLASS = 9
 
 class SSFTTnet_DCT(nn.Module):
     def __init__(self, in_channels=1, num_classes=NUM_CLASS, num_tokens=4, dim=64, depth=1, heads=8, mlp_dim=8, dropout=0.1, emb_dropout=0.1):
@@ -112,24 +113,14 @@ class SSFTTnet_DCT(nn.Module):
         self.L = num_tokens
         self.cT = dim
         self.conv3d_features = nn.Sequential(
-            nn.Conv3d(in_channels=in_channels, out_channels=2, kernel_size=(3, 3, 3), padding=(0,1,1)),
-            nn.BatchNorm3d(2),
+            nn.Conv3d(in_channels, out_channels=8, kernel_size=(3, 3, 3)),
+            nn.BatchNorm3d(8),
             nn.ReLU(),
         )
 
-        self.conv2d_features1 = nn.Sequential(
-            nn.Conv2d(in_channels=2*13, out_channels=16, kernel_size=(3, 3), padding="same"),
-            nn.BatchNorm2d(16),
-            nn.ReLU(),
-        )
-        self.conv2d_features2 = nn.Sequential(
-            nn.Conv2d(in_channels=2*5, out_channels=16, kernel_size=(3, 3), padding="same"),
-            nn.BatchNorm2d(16),
-            nn.ReLU(),
-        )
-        self.conv2d_features3 = nn.Sequential(
-            nn.Conv2d(in_channels=2*2, out_channels=16, kernel_size=(3, 3), padding="same"),
-            nn.BatchNorm2d(16),
+        self.conv2d_features = nn.Sequential(
+            nn.Conv2d(in_channels=8*28, out_channels=64, kernel_size=(3, 3)),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
         )
 
@@ -157,34 +148,15 @@ class SSFTTnet_DCT(nn.Module):
 
     def forward(self, x, mask=None):
 
-        x1 = x[:,:,:15,:,:]
-        x2 = x[:,:,15:22,:,:]
-        x3 = x[:,:,22:26,:,:]
-        x4 = x[:,:,26:,:,:]
-
-        x1 = self.conv3d_features(x1)
-        x2 = self.conv3d_features(x2)
-        x3 = self.conv3d_features(x3)
-        x4 = self.conv3d_features(x4)
-
-        x1 = rearrange(x1, 'b c h w y -> b (c h) w y')
-        x2 = rearrange(x2, 'b c h w y -> b (c h) w y')
-        x3 = rearrange(x3, 'b c h w y -> b (c h) w y')
-        x4 = rearrange(x4, 'b c h w y -> b (c h) w y')
-
-        x1 = self.conv2d_features1(x1)
-        x2 = self.conv2d_features2(x2)
-        x3 = self.conv2d_features3(x3)
-        x4 = self.conv2d_features3(x4) 
-        # print('x1, x2, x3, x4', x1.shape, x2.shape, x3.shape, x4.shape)
-        x = torch.cat((x1,x2,x3,x4), dim=1)
-        # print('x', x.shape)
+        x = self.conv3d_features(x)
+        x = rearrange(x, 'b c h w y -> b (c h) w y')
+        x = self.conv2d_features(x) 
 
         #DCT
         x = dct_2d(x)
         x = x[:,:,:7,:7]
         x = idct_2d(x)
-        
+
         x = rearrange(x,'b c h w -> b (h w) c')
         wa = rearrange(self.token_wA, 'b h w -> b w h')  # Transpose
         A = torch.einsum('bij,bjk->bik', x, wa)
@@ -209,6 +181,6 @@ if __name__ == '__main__':
     model = SSFTTnet_DCT()
     model.eval()
     print(model)
-    input = torch.randn(64, 1, 30, 9, 9)
+    input = torch.randn(64, 1, 30, 15, 15)
     y = model(input)
     print(y.size())
