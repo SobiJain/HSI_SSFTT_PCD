@@ -8,7 +8,6 @@ from torch import nn
 import torch.nn.init as init
 from dct import dct_2d, idct_2d
 
-
 def _weights_init(m):
     classname = m.__class__.__name__
     #print(classname)
@@ -113,8 +112,8 @@ class SSFTTnet_DCT(nn.Module):
         self.L = num_tokens
         self.cT = dim
         self.conv3d_features = nn.Sequential(
-            nn.Conv3d(in_channels, out_channels=8, kernel_size=(3, 3, 3)),
-            nn.BatchNorm3d(8),
+            nn.Conv3d(in_channels=in_channels, out_channels=2, kernel_size=(3, 3, 3)),
+            nn.BatchNorm3d(2),
             nn.ReLU(),
         )
 
@@ -148,7 +147,16 @@ class SSFTTnet_DCT(nn.Module):
 
     def forward(self, x, mask=None):
 
-        x = self.conv3d_features(x)
+        x1 = x[:,:,:15,:,:]
+        x2 = x[:,:,15:22,:,:]
+        x3 = x[:,:,22:26,:,:]
+        x4 = x[:,:,26:,:,:]
+        x1 = self.conv3d_features(x1)
+        x2 = self.conv3d_features(x2)
+        x3 = self.conv3d_features(x3)
+        x4 = self.conv3d_features(x4)
+        print('x1, x2, x3, x4', x1.shape, x2.shape, x3.shape, x4.shape)
+        x = torch.cat((x1,x2,x3,x4), dim=1)
         x = rearrange(x, 'b c h w y -> b (c h) w y')
         x = self.conv2d_features(x) 
 
