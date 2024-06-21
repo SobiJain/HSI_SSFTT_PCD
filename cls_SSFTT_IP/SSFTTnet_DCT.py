@@ -105,7 +105,7 @@ class Transformer(nn.Module):
             x = mlp(x)  # go to MLP_Block
         return x
 
-NUM_CLASS = 9
+NUM_CLASS = 16
 
 class SSFTTnet_DCT(nn.Module):
     def __init__(self, in_channels=1, num_classes=NUM_CLASS, num_tokens=4, dim=64, depth=1, heads=8, mlp_dim=8, dropout=0.1, emb_dropout=0.1):
@@ -127,10 +127,10 @@ class SSFTTnet_DCT(nn.Module):
         # Tokenization
         self.token_wA = nn.Parameter(torch.empty(1, self.L, 64),
                                      requires_grad=True)  # Tokenization parameters
-        torch.nn.init.xavier_normal_(self.token_wA)
+        torch.nn.init.kaiming_normal_(self.token_wA)
         self.token_wV = nn.Parameter(torch.empty(1, 64, self.cT),
                                      requires_grad=True)  # Tokenization parameters
-        torch.nn.init.xavier_normal_(self.token_wV)
+        torch.nn.init.kaiming_normal_(self.token_wV)
 
         self.pos_embedding = nn.Parameter(torch.empty(1, (num_tokens + 1), dim))
         torch.nn.init.normal_(self.pos_embedding, std=.02)
