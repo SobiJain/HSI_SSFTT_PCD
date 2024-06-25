@@ -11,7 +11,7 @@ from operator import truediv
 import get_cls_map
 import time
 import SSFTTnet
-import SSFTTnet_DCT
+import SSFTT_newTransformer
 from skimage.segmentation import slic
 from skimage.util import img_as_float
 from calflops import calculate_flops
@@ -307,7 +307,7 @@ def train(train_loader, val_loader, epochs):
     # 使用GPU训练，可以在菜单 "代码执行工具" -> "更改运行时类型" 里进行设置
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     # 网络放到GPU上
-    net = SSFTTnet_DCT.SSFTTnet_DCT().to(device)
+    net = SSFTT_newTransformer.SSFTTnet_DCT().to(device)
     # 交叉熵损失函数
     criterion = FocalLoss()
     # 初始化优化器
