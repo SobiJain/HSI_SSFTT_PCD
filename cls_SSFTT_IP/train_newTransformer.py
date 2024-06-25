@@ -124,7 +124,7 @@ def custom_softmax(y):
   return y
 
 patch_size = 9
-test_ratio = 0.92
+test_ratio = 0.90
 
 def create_data_loader():
     # 地物类别
@@ -139,24 +139,24 @@ def create_data_loader():
     print('Hyperspectral data shape: ', X.shape)
     print('Label shape: ', y.shape)
 
-    print('\n... ... SLIC tranformation ... ...')
-    X_pca = applyPCA(X, numComponents=pca_components//2)
-    X_slic = superpixel_segmentation(X_pca)
-    X_soft = custom_softmax(X_slic)
-    print('Data shape after SLIC: ', X_slic.shape)
-    X_slic = X_slic + X_soft
-    print('Data shape after SLIC: ', X_slic.shape)
+    # print('\n... ... SLIC tranformation ... ...')
+    # X_pca = applyPCA(X, numComponents=pca_components//2)
+    # X_slic = superpixel_segmentation(X_pca)
+    # X_soft = custom_softmax(X_slic)
+    # print('Data shape after SLIC: ', X_slic.shape)
+    # X_slic = X_slic + X_soft
+    # print('Data shape after SLIC: ', X_slic.shape)
 
-    print('\n... ... K-means tranformation ... ...')
-    X_kmean = kmeansnew(X)
-    X_kmean = X_kmean + X
-    X_pca = applyPCA(X_kmean, numComponents=pca_components//2)
-    X_soft = custom_softmax(X_pca)
-    X_pca = X_pca + X_soft
-    print('Data shape after K-means: ', X_pca.shape)
+    # print('\n... ... K-means tranformation ... ...')
+    # X_kmean = kmeansnew(X)
+    # X_kmean = X_kmean + X
+    X_pca = applyPCA(X, numComponents=pca_components)
+    # X_soft = custom_softmax(X_pca)
+    # X_pca = X_pca + X_soft
+    print('Data shape after PCA: ', X_pca.shape)
 
-    # concatenation
-    X_pca = np.concatenate((X_slic, X_pca), axis = 2)
+    # # concatenation
+    # X_pca = np.concatenate((X_slic, X_pca), axis = 2)
 
     print('\n... ... create data cubes ... ...')
     X_pca, y_all = createImageCubes(X_pca, y, windowSize=patch_size)
