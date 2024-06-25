@@ -133,41 +133,50 @@ class MLP_Block(nn.Module):
 
 
 class Attention(nn.Module):
-
     def __init__(self, dim, heads=8, dropout=0.1):
         super().__init__()
         self.heads = heads
         self.scale = dim ** -0.5  # 1/sqrt(dim)
 
-        self.to_qkv = nn.Linear(dim, dim * 3, bias=True)  # Wq,Wk,Wv for each vector, thats why *3
-        # torch.nn.init.xavier_uniform_(self.to_qkv.weight)
-        # torch.nn.init.zeros_(self.to_qkv.bias)
-
+        self.to_qkv = nn.Linear(dim, dim * 3, bias=True)  # Wq, Wk, Wv for each vector, hence *3
         self.nn1 = nn.Linear(dim, dim)
-        # torch.nn.init.xavier_uniform_(self.nn1.weight)
-        # torch.nn.init.zeros_(self.nn1.bias)
         self.do1 = nn.Dropout(dropout)
 
     def forward(self, x, mask=None):
-
         b, n, _, h = *x.shape, self.heads
-        qkv = self.to_qkv(x).chunk(3, dim = -1)  # gets q = Q = Wq matmul x1, k = Wk mm x2, v = Wv mm x3
-        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=h), qkv)  # split into multi head attentions
+        qkv = self.to_qkv(x).chunk(3, dim=-1)  # Split into q, k, v
+        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=h), qkv)  # Multi-head attentions
+        d = 8
+        # print('q', q.shape)
 
-        dots = torch.einsum('bhid,bhjd->bhij', q, k) * self.scale
-        mask_value = -torch.finfo(dots.dtype).max
+        # Pooling operations on q
+        q1 = nn.AdaptiveAvgPool2d((n, h))(q)  # q1: (batch_size, heads, sequence_length, class)
+        q2 = nn.AdaptiveMaxPool2d((h, d))(q)  # q2: (batch_size, heads, class, head_dim)
 
-        if mask is not None:
-            mask = F.pad(mask.flatten(1), (1, 0), value=True)
-            assert mask.shape[-1] == dots.shape[-1], 'mask has incorrect dimensions'
-            mask = mask[:, None, :] * mask[:, :, None]
-            dots.masked_fill_(~mask, float('-inf'))
-            del mask
+        # Apply softmax on q1
+        q1 = q1.softmax(dim=-1)
+        # print('q1', q1.shape)
 
-        attn = dots.softmax(dim=-1)  # follow the softmax,q,d,v equation in the paper
+        # Matrix multiply q2 with k transpose
+        # print('q2', q2.shape)
+        k = rearrange(k, 'b n h w -> b n w h')  # Transpose
+        # print('k', k.shape)
+        qk = torch.einsum('bhcd,bhdj->bhcj', q2, k) * self.scale
+        # print('qk', qk.shape)
 
-        out = torch.einsum('bhij,bhjd->bhid', attn, v)  # product of v times whatever inside softmax
-        out = rearrange(out, 'b h n d -> b n (h d)')  # concat heads into one matrix, ready for next encoder block
+        # Apply softmax on qk
+        qk = qk.softmax(dim=-1)
+
+        # Multiply qk with v
+        qkv = torch.einsum('bhcj,bhjd->bhcd', qk, v)
+        # print('qkv', qkv.shape)
+
+        # Multiply q1 with qkv
+        out = torch.einsum('bhnd,bhdc->bhnc', q1, qkv)
+        # print('out', out.shape)
+        out = rearrange(out, 'b h n d -> b n (h d)')  # Concatenate heads
+        # print('out', out.shape)
+
         out = self.nn1(out)
         out = self.do1(out)
         return out
@@ -188,7 +197,7 @@ class Transformer(nn.Module):
             x = mlp(x)  # go to MLP_Block
         return x
 
-NUM_CLASS = 16
+NUM_CLASS = 9
 
 class SSFTTnet_DCT(nn.Module):
     def __init__(self, in_channels=1, num_classes=NUM_CLASS, num_tokens=4, dim=64, depth=1, heads=8, mlp_dim=8, dropout=0.1, emb_dropout=0.1):
@@ -209,12 +218,27 @@ class SSFTTnet_DCT(nn.Module):
             nn.ReLU(),
         )
 
-        self.heads = heads
-        self.scale = dim ** -0.5  # 1/sqrt(dim)
+        # Tokenization
+        self.token_wA = nn.Parameter(torch.empty(1, self.L, 64),
+                                     requires_grad=True)  # Tokenization parameters
+        torch.nn.init.kaiming_normal_(self.token_wA)
+        self.token_wV = nn.Parameter(torch.empty(1, 64, self.cT),
+                                     requires_grad=True)  # Tokenization parameters
+        torch.nn.init.kaiming_normal_(self.token_wV)
 
-        self.to_qkv = nn.Linear(dim, dim * 3, bias=True)  # Wq, Wk, Wv for each vector, hence *3
-        self.nn1 = nn.Linear(dim, dim)
-        self.do1 = nn.Dropout(dropout)
+        self.pos_embedding = nn.Parameter(torch.empty(1, (num_tokens + 1), dim))
+        torch.nn.init.normal_(self.pos_embedding, std=.02)
+
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, dim))
+        self.dropout = nn.Dropout(emb_dropout)
+
+        self.transformer = Transformer(dim, depth, heads, mlp_dim, dropout)
+
+        self.to_cls_token = nn.Identity()
+
+        self.nn1 = nn.Linear(dim, num_classes)
+        torch.nn.init.xavier_uniform_(self.nn1.weight)
+        torch.nn.init.normal_(self.nn1.bias, std=1e-6)
 
     def forward(self, x, mask=None):
 
@@ -222,38 +246,24 @@ class SSFTTnet_DCT(nn.Module):
         x = rearrange(x, 'b c h w y -> b (c h) w y')
         x = self.conv2d_features(x) 
 
-        #DCT
-        x = dct_2d(x)
-        x = x[:,:,:7,:7]
-        x = idct_2d(x)
+        x = rearrange(x,'b c h w -> b (h w) c')
+        wa = rearrange(self.token_wA, 'b h w -> b w h')  # Transpose
+        A = torch.einsum('bij,bjk->bik', x, wa)
+        A = rearrange(A, 'b h w -> b w h')  # Transpose
+        A = A.softmax(dim=-1)
 
-        b, n, _, h = *x.shape, self.heads
-        qkv = self.to_qkv(x).chunk(3, dim=-1)  # Split into q, k, v
-        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=h), qkv)  # Multi-head attentions
+        VV = torch.einsum('bij,bjk->bik', x, self.token_wV)
+        T = torch.einsum('bij,bjk->bik', A, VV)
 
-        # Pooling operations on q
-        q1 = nn.AdaptiveAvgPool2d((n, h))(q)  # q1: (batch_size, heads, sequence_length, class)
-        q2 = nn.AdaptiveMaxPool2d((h, n))(q)  # q2: (batch_size, heads, class, head_dim)
+        cls_tokens = self.cls_token.expand(x.shape[0], -1, -1)
+        x = torch.cat((cls_tokens, T), dim=1)
+        x += self.pos_embedding
+        x = self.dropout(x)
+        x = self.transformer(x, mask)  # main game
+        x = self.to_cls_token(x[:, 0])
+        x = self.nn1(x)
 
-        # Apply softmax on q1
-        q1 = q1.softmax(dim=-1)
-
-        # Matrix multiply q2 with k transpose
-        qk = torch.einsum('bhcd,bhjd->bhcj', q2, k) * self.scale
-
-        # Apply softmax on qk
-        qk = qk.softmax(dim=-1)
-
-        # Multiply qk with v
-        qkv = torch.einsum('bhcj,bhjd->bhcd', qk, v)
-
-        # Multiply q1 with qkv
-        out = torch.einsum('bhnd,bhcd->bhcn', q1, qkv)
-        out = rearrange(out, 'b h n d -> b n (h d)')  # Concatenate heads
-
-        out = self.nn1(out)
-        out = self.do1(out)
-        return out
+        return x
 
 
 if __name__ == '__main__':
