@@ -309,7 +309,7 @@ def train(train_loader, val_loader, epochs):
     # 网络放到GPU上
     net = SSFTT_newTransformer.SSFTTnet_DCT().to(device)
     # 交叉熵损失函数
-    criterion = nn.CrossEntropyLoss()
+    criterion = FocalLoss()
     # 初始化优化器
     optimizer = optim.Adam(net.parameters(), lr=0.001)
     # 开始训练
