@@ -19,10 +19,10 @@ import cv2
 
 def loadData():
     # 读入数据
-    # data = sio.loadmat('/content/drive/MyDrive/Data/WHU data/WHU-Hi-HongHu/WHU_Hi_HongHu.mat')['WHU_Hi_HongHu']
-    # labels = sio.loadmat('/content/drive/MyDrive/Data/WHU data/WHU-Hi-HongHu/WHU_Hi_HongHu_gt.mat')['WHU_Hi_HongHu_gt']
-    data = sio.loadmat('/content/HSI_SSFTT_PCD/data/Indian_pines_corrected.mat')['indian_pines_corrected']
-    labels = sio.loadmat('/content/HSI_SSFTT_PCD/data/Indian_pines_gt.mat')['indian_pines_gt']
+    data = sio.loadmat('/content/drive/MyDrive/Data/PaviaU.mat')['paviaU']
+    labels = sio.loadmat('/content/drive/MyDrive/Data/PaviaU_gt.mat')['paviaU_gt']
+    # data = sio.loadmat('/content/HSI_SSFTT_PCD/data/Indian_pines_corrected.mat')['indian_pines_corrected']
+    # labels = sio.loadmat('/content/HSI_SSFTT_PCD/data/Indian_pines_gt.mat')['indian_pines_gt']
     return data, labels
 
 # 对高光谱数据 X 应用 PCA 变换
@@ -68,7 +68,7 @@ def createImageCubes(X, y, windowSize=5, removeZeroLabels = True):
 
     return patchesData, patchesLabels
 
-output_units = 16
+output_units = 9
 
 # SuperPixel Segmentation
 def superpixel_segmentation(image):
@@ -124,11 +124,11 @@ def custom_softmax(y):
   return y
 
 patch_size = 9
-test_ratio = 0.90
+test_ratio = 0.98
 
 def create_data_loader():
     # 地物类别
-    class_num = 16
+    class_num = 9
     # 读入数据
     X, y = loadData()
     # 用于测试样本的比例
@@ -309,7 +309,7 @@ def train(train_loader, val_loader, epochs):
     # 网络放到GPU上
     net = SSFTT_newTransformer.SSFTTnet_DCT().to(device)
     # 交叉熵损失函数
-    criterion = FocalLoss()
+    criterion = nn.CrossEntropyLoss()
     # 初始化优化器
     optimizer = optim.Adam(net.parameters(), lr=0.001)
     # 开始训练
@@ -387,8 +387,6 @@ def acc_reports(y_test, y_pred_test):
 
     target_names = ['Alfalfa', 'Corn-notill', 'Corn-mintill', 'Corn'
         , 'Grass-pasture', 'Grass-trees', 'Grass-pasture-mowed',
-                    'Hay-windrowed', 'Oats', 'Corn-mintill', 'Corn'
-        , 'Grass-pasture', 'Grass-trees', 'Grass-pasture-mowed',
                     'Hay-windrowed', 'Oats']
     classification = classification_report(y_test, y_pred_test, digits=4, target_names=target_names)
     oa = accuracy_score(y_test, y_pred_test)
@@ -423,7 +421,7 @@ if __name__ == '__main__':
     classification = str(classification)
     Training_Time = toc1 - tic1
     Test_time = toc2 - tic2
-    file_name = "cls_result/classification_report_IP "+str(test_ratio)+".txt"
+    file_name = "cls_result/classification_report_PU "+str(test_ratio)+".txt"
     with open(file_name, 'w') as x_file:
         x_file.write('{} Training_Time (s)'.format(Training_Time))
         x_file.write('\n')
