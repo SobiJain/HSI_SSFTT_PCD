@@ -403,7 +403,7 @@ if __name__ == '__main__':
     net, device = train(train_loader, val_loader, epochs=200)
     # 只保存模型参数
     print("_______________________________________")
-    input_shape = (128, 1, 30, 13, 13)
+    input_shape = (128, 1, 30, 9, 9)
     flops, macs, params = calculate_flops(model=net, 
                                         input_shape=input_shape,
                                         output_as_string=True,
