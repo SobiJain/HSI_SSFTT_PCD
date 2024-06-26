@@ -197,13 +197,14 @@ class Transformer(nn.Module):
             x = mlp(x)  # go to MLP_Block
         return x
 
-NUM_CLASS = 9
+NUM_CLASS = 16
 
 class SSFTTnet_DCT(nn.Module):
     def __init__(self, in_channels=1, num_classes=NUM_CLASS, num_tokens=4, dim=64, depth=1, heads=8, mlp_dim=8, dropout=0.1, emb_dropout=0.1):
         super(SSFTTnet_DCT, self).__init__()
         self.L = num_tokens
         self.cT = dim
+
         self.conv3d_features = nn.Sequential(
             # nn.Conv3d(in_channels, out_channels=8, kernel_size=(3, 3, 3)),
             LogConv3D(in_channels, 8),
@@ -242,8 +243,29 @@ class SSFTTnet_DCT(nn.Module):
 
     def forward(self, x, mask=None):
 
+        x1 = x[:,:,:15,:,1:]
+        x2 = x[:,:,15:23,:,:8]
+        x3 = x[:,:,23:,1:,:]
+
+        x1 = F.pad(input=x1, pad=(0, 1, 0, 0), mode='constant', value=0)
+        x2 = F.pad(input=x2, pad=(1, 0, 0, 0), mode='constant', value=0)
+        x3 = F.pad(input=x3, pad=(0, 0, 0, 1), mode='constant', value=0)
+
+        x = torch.cat((x1,x2,x3), dim = 2)
+        
         x = self.conv3d_features(x)
         x = rearrange(x, 'b c h w y -> b (c h) w y')
+        
+        x1 = x[:,:120,:,:8]
+        x2 = x[:,120:180,:,1:]
+        x3 = x[:,180:,:8,:]
+
+        x1 = F.pad(input=x1, pad=(1, 0, 0, 0), mode='constant', value=0)
+        x2 = F.pad(input=x2, pad=(0, 1, 0, 0), mode='constant', value=0)
+        x3 = F.pad(input=x3, pad=(0, 0, 1, 0), mode='constant', value=0)
+
+        x = torch.cat((x1,x2,x3), dim = 1)
+
         x = self.conv2d_features(x) 
 
         x = rearrange(x,'b c h w -> b (h w) c')
@@ -270,6 +292,6 @@ if __name__ == '__main__':
     model = SSFTTnet_DCT()
     model.eval()
     print(model)
-    input = torch.randn(64, 1, 30, 15, 15)
+    input = torch.randn(64, 1, 30, 9, 9)
     y = model(input)
     print(y.size())
