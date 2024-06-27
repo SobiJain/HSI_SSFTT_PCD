@@ -77,6 +77,7 @@ def splitTrainTestSet(X, y, testRatio, randomState=345):
 
 BATCH_SIZE_TRAIN = 64
 output_units = 3
+test_ratio = 0.99
 
 def create_data_loader(v1,v2):
     # 地物类别
@@ -85,7 +86,6 @@ def create_data_loader(v1,v2):
     #X, y = loadData()
     X,y = v1,v2
     # 用于测试样本的比例
-    test_ratio = 0.98
     # 每个像素周围提取 patch 的尺寸
     patch_size = 9
     # 使用 PCA 降维，得到主成分的数量
@@ -370,7 +370,7 @@ if __name__ == '__main__':
 
     HSI, HSI_general_masks, HSI_monoseg_masks, _, _, _, _ = read_dataset(dataset_path)
 
-    indexes = [1,3,6,18,40]
+    indexes = [0,2,17,27,32]
 
     for i in indexes:
       v1=HSI[i]
@@ -391,7 +391,7 @@ if __name__ == '__main__':
       classification = str(classification)
       Training_Time = toc1 - tic1
       Test_time = toc2 - tic2
-      file_name = "cls_facto/img"+str(i)+".txt"
+      file_name = "cls_facto/img"+str(i)+"_"+str(test_ratio)+".txt"
       with open(file_name, 'w') as x_file:
           x_file.write('{} Training_Time (s)'.format(Training_Time))
           x_file.write('\n')
@@ -410,3 +410,8 @@ if __name__ == '__main__':
           x_file.write('{}'.format(confusion))
 
       get_cls_map.get_cls_map(net, device, all_data_loader, y_all, i)
+
+
+
+
+
