@@ -85,7 +85,7 @@ def create_data_loader(v1,v2):
     #X, y = loadData()
     X,y = v1,v2
     # 用于测试样本的比例
-    test_ratio = 0.99
+    test_ratio = 0.98
     # 每个像素周围提取 patch 的尺寸
     patch_size = 9
     # 使用 PCA 降维，得到主成分的数量
@@ -105,27 +105,34 @@ def create_data_loader(v1,v2):
 
     print('\n... ... create train & test data ... ...')
     Xtrain, Xtest, ytrain, ytest = splitTrainTestSet(X_pca, y_all, test_ratio)
+    Xval, Xtest, yval, ytest = splitTrainTestSet(Xtest, ytest, (1-(1-test_ratio)/test_ratio))
     print('Xtrain shape: ', Xtrain.shape)
     print('Xtest  shape: ', Xtest.shape)
+    print('Xval  shape: ', Xval.shape)
 
     # 改变 Xtrain, Ytrain 的形状，以符合 keras 的要求
     X = X_pca.reshape(-1, patch_size, patch_size, pca_components, 1)
     Xtrain = Xtrain.reshape(-1, patch_size, patch_size, pca_components, 1)
     Xtest = Xtest.reshape(-1, patch_size, patch_size, pca_components, 1)
+    Xval = Xval.reshape(-1, patch_size, patch_size, pca_components, 1)
     print('before transpose: Xtrain shape: ', Xtrain.shape)
     print('before transpose: Xtest  shape: ', Xtest.shape)
+    print('before transpose: Xval  shape: ', Xval.shape)
 
     # 为了适应 pytorch 结构，数据要做 transpose
     X = X.transpose(0, 4, 3, 1, 2)
     Xtrain = Xtrain.transpose(0, 4, 3, 1, 2)
     Xtest = Xtest.transpose(0, 4, 3, 1, 2)
+    Xval = Xval.transpose(0, 4, 3, 1, 2)
     print('after transpose: Xtrain shape: ', Xtrain.shape)
     print('after transpose: Xtest  shape: ', Xtest.shape)
+    print('after transpose: Xval  shape: ', Xval.shape)
 
     # 创建train_loader和 test_loader
     X = TestDS(X, y_all)
     trainset = TrainDS(Xtrain, ytrain)
     testset = TestDS(Xtest, ytest)
+    valset = TrainDS(Xval, yval)
     train_loader = torch.utils.data.DataLoader(dataset=trainset,
                                                batch_size=BATCH_SIZE_TRAIN,
                                                shuffle=True,
@@ -136,13 +143,18 @@ def create_data_loader(v1,v2):
                                                shuffle=False,
                                                num_workers=0,
                                               )
+    val_loader = torch.utils.data.DataLoader(dataset=valset,
+                                               batch_size=BATCH_SIZE_TRAIN,
+                                               shuffle=True,
+                                               num_workers=0,
+                                               )
     all_data_loader = torch.utils.data.DataLoader(dataset=X,
                                                 batch_size=BATCH_SIZE_TRAIN,
                                                 shuffle=False,
                                                 num_workers=0,
                                               )
 
-    return train_loader, test_loader, all_data_loader, y
+    return train_loader, test_loader, val_loader, all_data_loader, y
 
 """ Training dataset"""
 
@@ -226,7 +238,7 @@ class FocalLoss(nn.modules.loss._WeightedLoss):
         focal_loss = focal_loss / output_units   
         return focal_loss.to(self.device)
 
-def train(train_loader, epochs):
+def train(train_loader, val_loader, epochs):
 
     # 使用GPU训练，可以在菜单 "代码执行工具" -> "更改运行时类型" 里进行设置
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -289,6 +301,24 @@ def train(train_loader, epochs):
         print('[Epoch: %d]   [loss avg: %.4f]   [current loss: %.4f]' % (epoch + 1,
                                                                          total_loss / (epoch + 1),
                                                                          loss.item()))
+        val_acc_list = []
+        val_epoch_list = []
+        val_num = val_loader.dataset.__len__()
+        ## valuation
+        if (epoch+1)%4 == 0 or (epoch+1)==epochs:
+            val_acc =0
+            net.eval()
+            for batch_idx, (data, target) in enumerate(val_loader):
+                data,target = data.to(device),target.to(device)
+                out = net(data)
+                target = target - 1  ## class 0 in out is class 1 in target
+                _,pred = torch.max(out,dim=1)
+                val_acc += (pred == target).sum().item()
+            val_acc_list.append(val_acc/val_num)
+            val_epoch_list.append(epoch)
+            print(f"epoch {epoch}/{epochs}  val_acc:{val_acc_list[-1]}")
+            save_name = os.path.join('/', f"epoch_{epoch}_acc_{val_acc_list[-1]:.4f}.pth")
+            torch.save(net.state_dict(),save_name)
 
     print('Finished Training')
 
@@ -340,16 +370,16 @@ if __name__ == '__main__':
 
     HSI, HSI_general_masks, HSI_monoseg_masks, _, _, _, _ = read_dataset(dataset_path)
 
-    indexes = [0,10,12,17,2,20,27,3,33,34,39,49,5,52,7]
+    indexes = [1,3,6,18,40]
 
     for i in indexes:
       v1=HSI[i]
       v2=HSI_general_masks[i]
       print("****************&&&&&&&&&&&&&&")
       print(i)
-      train_loader, test_loader, all_data_loader, y_all= create_data_loader(v1,v2)
+      train_loader, test_loader, val_loader, all_data_loader, y_all= create_data_loader(v1,v2)
       tic1 = time.perf_counter()
-      net, device = train(train_loader, epochs=100)
+      net, device = train(train_loader, val_loader, epochs=100)
       # 只保存模型参数
       torch.save(net.state_dict(), 'cls_params/SSFTTnet_params.pth')
       toc1 = time.perf_counter()
@@ -379,4 +409,4 @@ if __name__ == '__main__':
           x_file.write('\n')
           x_file.write('{}'.format(confusion))
 
-      get_cls_map.get_cls_map1(net, device, all_data_loader, y_all, i)
+      get_cls_map.get_cls_map(net, device, all_data_loader, y_all, i)
