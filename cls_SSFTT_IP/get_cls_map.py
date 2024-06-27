@@ -93,7 +93,7 @@ def test(device, net, test_loader):
 
     return y_pred_test, y_test
 
-def get_cls_map(net, device, all_data_loader, y):
+def get_cls_map(net, device, all_data_loader, y, ind, test_ratio):
 
     y_pred, y_new = test(device, net, all_data_loader)
     cls_labels = get_classification_map(y_pred, y)
@@ -106,9 +106,9 @@ def get_cls_map(net, device, all_data_loader, y):
     y_re = np.reshape(y_list, (y.shape[0], y.shape[1], 3))
     gt_re = np.reshape(y_gt, (y.shape[0], y.shape[1], 3))
     classification_map(y_re, y, 300,
-                       'classification_maps/' + 'IP_predictions.eps')
+                       'classification_maps/' + 'IP_predictions '+str(ind)+"_"+str(test_ratio)+'.eps')
     classification_map(y_re, y, 300,
-                       'classification_maps/' + 'IP_predictions.png')
+                       'classification_maps/' + 'IP_predictions '+str(ind)+"_"+str(test_ratio)+'.png')
     classification_map(gt_re, y, 300,
-                       'classification_maps/' + 'IP_gt.png')
+                       'classification_maps/' + 'IP_gt '+str(ind)+"_"+str(test_ratio)+'.png')
     print('------Get classification maps successful-------')
