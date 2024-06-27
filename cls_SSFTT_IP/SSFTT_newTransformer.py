@@ -197,7 +197,7 @@ class Transformer(nn.Module):
             x = mlp(x)  # go to MLP_Block
         return x
 
-NUM_CLASS = 16
+NUM_CLASS = 3
 
 class SSFTTnet_DCT(nn.Module):
     def __init__(self, in_channels=1, num_classes=NUM_CLASS, num_tokens=4, dim=64, depth=1, heads=8, mlp_dim=8, dropout=0.1, emb_dropout=0.1):
