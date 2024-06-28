@@ -12,6 +12,7 @@ import time
 import SSFTTnet
 from dataset_functions import *
 import SSFTT_newTransformer
+from calflops import calculate_flops
 #from FactoFormer import *
 
 
@@ -386,6 +387,14 @@ if __name__ == '__main__':
       tic2 = time.perf_counter()
       y_pred_test, y_test = test(device, net, test_loader)
       toc2 = time.perf_counter()
+
+      print("_______________________________________")
+      input_shape = (64, 1, 30, 9, 9)
+      flops, macs, params = calculate_flops(model=net, 
+                                          input_shape=input_shape,
+                                          output_as_string=True,
+                                          output_precision=4)
+      print("Alexnet FLOPs:%s  -- MACs:%s   -- Params:%s \n" %(flops, macs, params))
       # 评价指标
       classification, oa, confusion, each_acc, aa, kappa = acc_reports(y_test, y_pred_test)
       classification = str(classification)
